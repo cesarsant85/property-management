@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full bg-slate-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Gestão de imóveis</title>
+    <meta name="description" content="Controle financeiro e imobiliário: recebimentos, despesas e saldo.">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Imóveis">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="preload" href="fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body class="min-h-full text-slate-800 font-sans flex flex-col antialiased">
+
+    <!-- CABEÇALHO DE IMPRESSÃO -->
+    <div class="print-only p-6 border-b-2 border-slate-800 mb-6">
+        <div class="flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold uppercase tracking-wide text-slate-900">Relatório - Gestão de imóveis</h1>
+                <p class="text-sm text-slate-600">Demonstrativo de Entradas, Saídas e Saldo Líquido</p>
+            </div>
+            <div class="text-right text-xs text-slate-500">
+                <p>Data de Emissão: <span id="print-date"></span></p>
+                <p>Filtro Aplicado: <span id="print-filtro-periodo">Todos os Períodos</span></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- CABEÇALHO DA APLICAÇÃO -->
+    <header class="app-header no-print bg-slate-900 text-white shadow-md sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="bg-brand-500 text-white p-2 rounded-xl shadow-lg">
+                    <i class="fa-solid fa-building-circle-check text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight">Gestão de imóveis</h1>
+                    <p class="text-xs text-slate-400">Controle Financeiro & Imobiliário</p>
+                </div>
+            </div>
+
+            <!-- Ações Globais de Backup & Impressão -->
+            <div class="flex items-center space-x-2 sm:space-x-3">
+                <button onclick="exportarBackupJSON()" class="px-3 py-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 rounded-lg transition-all flex items-center gap-1.5" title="Salvar arquivo de backup">
+                    <i class="fa-solid fa-download"></i>
+                    <span class="hidden md:inline">Backup (JSON)</span>
+                </button>
+                <label class="px-3 py-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer" title="Restaurar dados">
+                    <i class="fa-solid fa-upload"></i>
+                    <span class="hidden md:inline">Restaurar</span>
+                    <input type="file" id="import-json-file" accept=".json,application/json" onchange="importarBackupJSON(event)" class="hidden">
+                </label>
+                <button onclick="imprimirRelatorio()" class="px-3 py-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-all flex items-center gap-1.5">
+                    <i class="fa-solid fa-print"></i>
+                    <span class="hidden sm:inline">Imprimir Relatório</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- BARRA DE NAVEGAÇÃO POR ABAS -->
+    <nav class="app-nav no-print bg-white border-b border-slate-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-1 sm:space-x-4">
+            <button onclick="mudarAba('dashboard')" id="tab-dashboard" class="tab-btn active px-4 py-3 text-xs sm:text-sm font-semibold text-slate-600 hover:text-brand-600 flex items-center gap-2 transition-all">
+                <i class="fa-solid fa-chart-line"></i> Dashboard
+            </button>
+            <button onclick="mudarAba('lancamentos')" id="tab-lancamentos" class="tab-btn px-4 py-3 text-xs sm:text-sm font-semibold text-slate-600 hover:text-brand-600 flex items-center gap-2 transition-all">
+                <i class="fa-solid fa-list-check text-brand-600"></i> Lançamentos
+            </button>
+            <button onclick="mudarAba('imoveis')" id="tab-imoveis" class="tab-btn px-4 py-3 text-xs sm:text-sm font-semibold text-slate-600 hover:text-brand-600 flex items-center gap-2 transition-all">
+                <i class="fa-solid fa-house-user"></i> Imóveis
+            </button>
+        </div>
+    </nav>
+
+    <!-- CONTEÚDO PRINCIPAL -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <div id="install-banner" class="no-print hidden flex items-center gap-3 bg-brand-50 border border-brand-100 rounded-2xl p-3 text-sm text-brand-900">
+            <i class="fa-solid fa-mobile-screen-button text-brand-600 text-lg"></i>
+            <span class="flex-1">Instale o app para abrir em tela cheia e usar offline.</span>
+            <button onclick="instalarApp()" class="px-3 py-2 text-xs font-semibold bg-brand-600 text-white rounded-xl">Instalar</button>
+            <button onclick="dispensarInstalacao()" class="p-2 text-slate-400" aria-label="Dispensar"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <!-- BARRA GLOBAL DE FILTROS E BOTÕES RÁPIDOS DE AÇÃO -->
+        <section id="barra-filtros" class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm no-print flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-calendar-days text-brand-600 text-base"></i>
+                    <span class="hidden sm:inline text-xs font-bold text-slate-700 uppercase">Filtrar por Mês:</span>
+                </div>
+                <!-- Caixa de seleção de Mês/Ano -->
+                <select id="filter-global-mes" onchange="aplicarFiltroGlobal()" class="flex-1 min-w-0 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                    <option value="">Todos os Meses</option>
+                </select>
+                <button onclick="limparFiltroPeriodo()" class="ver-todos shrink-0 text-xs text-slate-500 hover:text-brand-600 font-medium underline">Ver Todos</button>
+            </div>
+
+            <div class="acoes-rapidas grid grid-cols-2 gap-2 md:flex">
+                <button onclick="abrirModalRecebimento()" class="px-3.5 py-2 text-xs sm:text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shadow transition-all flex items-center gap-2">
+                    <i class="fa-solid fa-plus"></i> Novo Recebimento
+                </button>
+                <button onclick="abrirModalDespesa()" class="px-3.5 py-2 text-xs sm:text-sm font-semibold bg-rose-600 hover:bg-rose-500 text-white rounded-xl shadow transition-all flex items-center gap-2">
+                    <i class="fa-solid fa-minus"></i> Nova Despesa
+                </button>
+            </div>
+        </section>
+
+        <!-- ================= Aba 1: DASHBOARD ================= -->
+        <div id="conteudo-dashboard" class="space-y-6">
+            <!-- CARDS DE RESUMO (KPIs) -->
+            <section id="kpi-grid" class="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                <div class="bg-slate-900 text-white rounded-2xl p-5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 col-span-2 lg:col-span-3">
+                    <div>
+                        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider"><i class="fa-solid fa-building-columns mr-1"></i> Saldo em Conta Bancária</p>
+                        <h3 class="text-3xl font-bold mt-1" id="kpi-conta">R$ 0,00</h3>
+                        <p class="text-xs text-slate-400 mt-1" id="kpi-conta-info"></p>
+                    </div>
+                    <button onclick="abrirModalSaldo()" class="px-4 py-2 text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white rounded-xl shadow flex items-center gap-2 shrink-0">
+                        <i class="fa-solid fa-scale-balanced"></i> Ajustar saldo
+                    </button>
+                </div>
+                <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Recebido (+)</p>
+                        <h3 class="text-2xl font-bold text-emerald-600 mt-1" id="kpi-recebido">R$ 0,00</h3>
+                        <p class="text-xs text-slate-500 mt-1 font-medium"><i class="fa-solid fa-circle-check text-emerald-500"></i> Entradas Confirmadas</p>
+                    </div>
+                    <div class="kpi-icon p-3 bg-emerald-50 rounded-xl text-emerald-600">
+                        <i class="fa-solid fa-money-bill-wave text-2xl"></i>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Despesas (-)</p>
+                        <h3 class="text-2xl font-bold text-rose-600 mt-1" id="kpi-despesas">R$ 0,00</h3>
+                        <p class="text-xs text-slate-500 mt-1 font-medium"><i class="fa-solid fa-arrow-down text-rose-500"></i> Saídas e Custos</p>
+                    </div>
+                    <div class="kpi-icon p-3 bg-rose-50 rounded-xl text-rose-600">
+                        <i class="fa-solid fa-file-invoice-dollar text-2xl"></i>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Saldo Líquido (=)</p>
+                        <h3 class="text-2xl font-bold text-slate-800 mt-1" id="kpi-saldo-liquido">R$ 0,00</h3>
+                        <p class="text-xs text-slate-500 mt-1 font-medium" id="kpi-saldo-status">Receitas - Despesas</p>
+                    </div>
+                    <div class="kpi-icon p-3 bg-blue-50 rounded-xl text-brand-600" id="kpi-saldo-icon-bg">
+                        <i class="fa-solid fa-wallet text-2xl" id="kpi-saldo-icon"></i>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Pendente / Atrasado</p>
+                        <h3 class="text-2xl font-bold text-amber-600 mt-1" id="kpi-pendente">R$ 0,00</h3>
+                        <p class="text-xs text-slate-500 mt-1 font-medium" id="kpi-pendente-count">0 pendentes</p>
+                    </div>
+                    <div class="kpi-icon p-3 bg-amber-50 rounded-xl text-amber-600">
+                        <i class="fa-solid fa-clock text-2xl"></i>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Taxa Adimplência</p>
+                        <h3 class="text-2xl font-bold text-slate-800 mt-1" id="kpi-adimplencia">0%</h3>
+                        <p class="text-xs text-slate-500 mt-1"><span id="kpi-imoveis-count">0</span> imóveis cadastrados</p>
+                    </div>
+                    <div class="kpi-icon p-3 bg-indigo-50 rounded-xl text-indigo-600">
+                        <i class="fa-solid fa-chart-pie text-2xl"></i>
+                    </div>
+                </div>
+            </section>
+
+            <!-- GRÁFICOS -->
+            <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm lg:col-span-2">
+                    <h2 class="font-bold text-slate-800 text-base mb-4">Evolução Financeira: Receitas vs. Despesas</h2>
+                    <div class="h-64 relative">
+                        <canvas id="chartMensal"></canvas>
+                    </div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                    <h2 class="font-bold text-slate-800 text-base mb-4">Despesas por Categoria</h2>
+                    <div class="h-64 relative flex items-center justify-center">
+                        <canvas id="chartCategoriasDespesa"></canvas>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- ================= Aba Única: LANÇAMENTOS ================= -->
+        <div id="conteudo-lancamentos" class="space-y-6 hidden">
+            <section class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm no-print space-y-4">
+                <div class="flex flex-col md:flex-row gap-3 justify-between items-stretch md:items-center">
+                    <div class="flex flex-1 flex-col sm:flex-row gap-3">
+                        <!-- Busca Geral -->
+                        <div class="relative flex-1">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                            <input type="text" id="search-input-lanc" oninput="aplicarFiltrosLancamentos()" placeholder="Buscar por imóvel, inquilino ou descrição..." class="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                        </div>
+
+                        <!-- Filtro Tipo de Lançamento -->
+                        <select id="filter-tipo-lanc" onchange="aplicarFiltrosLancamentos()" class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                            <option value="TODOS">Todos os Tipos</option>
+                            <option value="RECEBIMENTO">Recebimentos (Entradas)</option>
+                            <option value="DESPESA">Despesas (Saídas)</option>
+                        </select>
+
+                        <!-- Filtro Status -->
+                        <select id="filter-status-lanc" onchange="aplicarFiltrosLancamentos()" class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                            <option value="TODOS">Todos os Status</option>
+                            <option value="PAGO">Pago / Concluído</option>
+                            <option value="PENDENTE">Pendente</option>
+                            <option value="ATRASADO">Atrasado</option>
+                        </select>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <button onclick="exportarCSVLancamentos()" class="px-3 py-2 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all flex items-center gap-1.5">
+                            <i class="fa-solid fa-file-csv text-emerald-600"></i> Exportar CSV
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TABELA DE LANÇAMENTOS -->
+            <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="p-4 border-b border-slate-100 flex justify-between items-center">
+                    <h2 class="font-bold text-slate-800 text-base">Histórico de Lançamentos</h2>
+                    <span id="registro-lanc-count" class="text-xs text-slate-500 font-medium">Exibindo 0 lançamentos</span>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                <th class="py-3 px-4">Tipo</th>
+                                <th class="py-3 px-4">Descrição / Imóvel</th>
+                                <th class="py-3 px-4">Inquilino / Categoria</th>
+                                <th class="py-3 px-4">Data / Vencimento</th>
+                                <th class="py-3 px-4">Valor (R$)</th>
+                                <th class="py-3 px-4">Status</th>
+                                <th class="py-3 px-4 no-print text-right">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabela-lancamentos" class="divide-y divide-slate-100 text-sm"></tbody>
+                    </table>
+                </div>
+
+                <div id="empty-state-lancamentos" class="hidden p-8 text-center">
+                    <i class="fa-solid fa-receipt text-4xl text-slate-300 mb-3"></i>
+                    <p class="text-slate-500 font-medium">Nenhum lançamento localizado para os filtros selecionados.</p>
+                </div>
+            </section>
+        </div>
+
+        <!-- ================= Aba 3: CADASTRO DE IMÓVEIS ================= -->
+        <div id="conteudo-imoveis" class="space-y-6 hidden">
+            <section class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm no-print">
+                <div>
+                    <h2 class="font-bold text-slate-800 text-lg">Catálogo de Imóveis Cadastrados</h2>
+                    <p class="text-xs text-slate-500">Cadastre seus imóveis para agilizar lançamentos de receitas e despesas.</p>
+                </div>
+                <div class="grid grid-cols-2 gap-2 sm:flex sm:gap-3"><button onclick="abrirModalImovel()" class="px-4 py-2 text-xs sm:text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white rounded-xl shadow transition-all flex items-center gap-2">
+                    <i class="fa-solid fa-plus"></i> Cadastrar Imóvel </button>
+                <button onclick="gerarCobrancasMes()" class="px-4 py-2 text-xs sm:text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shadow transition-all flex items-center gap-2" title="Cria um recebimento pendente para cada imóvel no mês escolhido">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> Gerar cobranças do mês
+                </button></div>
+            </section>
+
+            <section id="grid-imoveis" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></section>
+
+            <div id="empty-state-imoveis" class="hidden p-8 text-center bg-white rounded-2xl border border-slate-200">
+                <i class="fa-solid fa-house-circle-xmark text-4xl text-slate-300 mb-3"></i>
+                <p class="text-slate-500 font-medium">Nenhum imóvel cadastrado.</p>
+            </div>
+        </div>
+
+        <!-- TABELA DE IMPRESSÃO - IMPRESSO APENAS EM IMPRESSÃO DO NAVEGADOR -->
+        <div class="print-only space-y-6">
+            <div class="border p-4 rounded-xl">
+                <h3 class="font-bold text-lg mb-2">Resumo do Balancete Financeiro</h3>
+                <div class="grid grid-cols-3 gap-4 text-center">
+                    <div class="p-2 border rounded">
+                        <p class="text-xs uppercase">Entradas (Recebimentos)</p>
+                        <p class="text-base font-bold text-emerald-700" id="print-total-entradas">R$ 0,00</p>
+                    </div>
+                    <div class="p-2 border rounded">
+                        <p class="text-xs uppercase">Saídas (Despesas)</p>
+                        <p class="text-base font-bold text-rose-700" id="print-total-saidas">R$ 0,00</p>
+                    </div>
+                    <div class="p-2 border rounded">
+                        <p class="text-xs uppercase">Saldo Líquido</p>
+                        <p class="text-base font-bold" id="print-saldo-liquido">R$ 0,00</p>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <h3 class="font-bold text-base mb-2">Detalhamento de Entradas (Recebimentos Pagos)</h3>
+                <table class="w-full text-left border-collapse text-xs border">
+                    <thead>
+                        <tr class="bg-slate-100 border-b">
+                            <th class="p-2">Imóvel</th>
+                            <th class="p-2">Inquilino</th>
+                            <th class="p-2">Pagamento</th>
+                            <th class="p-2">Valor Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="print-tabela-entradas"></tbody>
+                </table>
+            </div>
+
+            <div>
+                <h3 class="font-bold text-base mb-2">Detalhamento de Saídas (Despesas)</h3>
+                <table class="w-full text-left border-collapse text-xs border">
+                    <thead>
+                        <tr class="bg-slate-100 border-b">
+                            <th class="p-2">Descrição</th>
+                            <th class="p-2">Categoria</th>
+                            <th class="p-2">Imóvel</th>
+                            <th class="p-2">Data</th>
+                            <th class="p-2">Valor</th>
+                        </tr>
+                    </thead>
+                    <tbody id="print-tabela-saidas"></tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- RODAPÉ DA PÁGINA -->
+    <footer class="app-footer no-print mt-auto bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500">
+        <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center gap-2">
+            <p>Gestão de imóveis - Armazenamento Local Seguro (LocalStorage).</p>
+            <div class="flex gap-3">
+                <button onclick="carregarDadosExemplo()" class="text-brand-600 hover:underline">Carregar Dados Exemplo</button>
+                <span>•</span>
+                <button onclick="resetarBanco()" class="text-rose-600 hover:underline">Limpar Banco Local</button>
+            </div>
+        </div>
+    </footer>
+
+    <!-- MODAL DE LANÇAMENTO DE RECEBIMENTO -->
+    <div id="modal-recebimento" class="no-print fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-100 max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden">
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 id="modal-rec-titulo" class="font-bold text-slate-800 text-lg">Novo Recebimento</h3>
+                <button onclick="fecharModalRecebimento()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+
+            <form id="form-recebimento" onsubmit="salvarRecebimento(event)" class="p-6 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 overflow-y-auto">
+                <input type="hidden" id="field-rec-id">
+
+                <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Selecione o Imóvel Cadastrado</label>
+                    <select id="field-rec-imovel-select" onchange="autopreencherImovel()" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500">
+                        <option value="">-- Selecione para preencher --</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Identificação Imóvel *</label>
+                        <input type="text" id="field-rec-imovel" required placeholder="Ex: Apto 101 - Bloco A" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Inquilino *</label>
+                        <input type="text" id="field-rec-inquilino" required placeholder="Ex: João da Silva" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500">
+                    </div>
+                </div>
+
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                    <p class="text-xs font-bold text-slate-700 uppercase"><i class="fa-solid fa-calculator mr-1"></i> Composição do Valor</p>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Valor Aluguel (R$) *</label>
+                            <input type="number" step="0.01" id="field-rec-valor" required oninput="calcularTotalLancamento()" placeholder="1500.00" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 bg-white">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Despesa Extra / Adicional (R$)</label>
+                            <input type="number" step="0.01" id="field-rec-despesa-valor" oninput="calcularTotalLancamento()" placeholder="0.00" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 bg-white">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Descrição do Adicional Extra</label>
+                        <input type="text" id="field-rec-despesa-desc" placeholder="Ex: Taxa de condomínio extra, Reparo de pintura" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 bg-white">
+                    </div>
+
+                    <div class="flex justify-between items-center pt-2 border-t border-slate-200">
+                        <span class="text-xs font-bold text-slate-600">TOTAL DO RECEBIMENTO:</span>
+                        <span id="field-rec-total-display" class="text-base font-bold text-emerald-700">R$ 0,00</span>
+                    </div>
+                </div>
+                </div>
+
+                <div class="space-y-4">
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Data Vencimento *</label>
+                        <input type="date" id="field-rec-vencimento" required class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Status *</label>
+                        <select id="field-rec-status" required onchange="ajustarDataPagamento()" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500">
+                            <option value="PAGO">Pago</option>
+                            <option value="PENDENTE">Pendente</option>
+                            <option value="ATRASADO">Atrasado</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Data Pagamento</label>
+                    <input type="date" id="field-rec-dataPagamento" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Observações</label>
+                    <textarea id="field-rec-observacao" rows="2" placeholder="Ex: Pago via PIX" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500"></textarea>
+                </div>
+
+                </div>
+
+                <div class="md:col-span-2 flex justify-end gap-3 pt-4 border-t border-slate-100">
+                    <button type="button" onclick="fecharModalRecebimento()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shadow">Salvar Recebimento</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL DE REGISTRO DE DESPESA -->
+    <div id="modal-despesa" class="no-print fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-100 max-w-lg w-full overflow-hidden">
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 id="modal-desp-titulo" class="font-bold text-slate-800 text-lg">Nova Despesa</h3>
+                <button onclick="fecharModalDespesa()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+
+            <form id="form-despesa" onsubmit="salvarDespesa(event)" class="p-6 space-y-4">
+                <input type="hidden" id="field-desp-id">
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Descrição da Despesa *</label>
+                    <input type="text" id="field-desp-descricao" required placeholder="Ex: Pintura da fachada, IPTU Cota 2, Reparo hidráulico" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-500">
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Valor (R$) *</label>
+                        <input type="number" step="0.01" id="field-desp-valor" required placeholder="250.00" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Data *</label>
+                        <input type="date" id="field-desp-data" required class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-500">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Categoria *</label>
+                        <select id="field-desp-categoria" required class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-500">
+                            <option value="Manutenção">Manutenção</option>
+                            <option value="IPTU / Impostos">IPTU / Impostos</option>
+                            <option value="Condomínio">Condomínio</option>
+                            <option value="Taxa de Administração">Taxa de Administração</option>
+                            <option value="Outros">Outros</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Imóvel Vinculado</label>
+                        <select id="field-desp-imovel-select" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-500">
+                            <option value="Geral / Administração">Geral / Administração</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Observações</label>
+                    <textarea id="field-desp-observacao" rows="2" placeholder="Ex: Nota fiscal enviada pelo encanador" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-500"></textarea>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                    <button type="button" onclick="fecharModalDespesa()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 text-sm font-semibold bg-rose-600 hover:bg-rose-500 text-white rounded-xl shadow">Salvar Despesa</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL DE CADASTRO DE IMÓVEL -->
+    <div id="modal-imovel" class="no-print fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-100 max-w-lg w-full overflow-hidden">
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 id="modal-imovel-titulo" class="font-bold text-slate-800 text-lg">Cadastrar Imóvel</h3>
+                <button onclick="fecharModalImovel()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+
+            <form id="form-imovel" onsubmit="salvarImovel(event)" class="p-6 space-y-4">
+                <input type="hidden" id="field-imovel-id">
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Nome / Identificador do Imóvel *</label>
+                    <input type="text" id="field-imovel-nome" required placeholder="Ex: Apto 101 - Ed. Solar" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Endereço Completo</label>
+                    <input type="text" id="field-imovel-endereco" placeholder="Ex: Rua das Flores, 123" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Inquilino Padrão</label>
+                    <input type="text" id="field-imovel-inquilino" placeholder="Ex: Carlos Eduardo" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500">
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Valor Base Aluguel (R$) *</label>
+                        <input type="number" step="0.01" id="field-imovel-valor" required placeholder="2000.00" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Dia de Vencimento *</label>
+                        <input type="number" min="1" max="31" id="field-imovel-dia" required placeholder="10" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500">
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                    <button type="button" onclick="fecharModalImovel()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white rounded-xl shadow">Salvar Imóvel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    
+    <!-- MODAL DE AJUSTE DE SALDO BANCÁRIO -->
+    <div id="modal-saldo" class="no-print fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-100 max-w-lg w-full overflow-hidden max-h-[92vh] flex flex-col">
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 class="font-bold text-slate-800 text-lg">Ajustar Saldo da Conta</h3>
+                <button onclick="fecharModalSaldo()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form onsubmit="salvarAjusteSaldo(event)" class="p-6 space-y-4 overflow-y-auto">
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 flex justify-between items-center">
+                    <span class="text-xs font-bold text-slate-600 uppercase">Saldo atual no sistema</span>
+                    <span id="saldo-sistema-display" class="font-bold text-slate-800">R$ 0,00</span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Saldo real no banco (R$) *</label>
+                        <input type="number" step="0.01" id="field-saldo-real" required oninput="previewDiferenca()" placeholder="Ex: 12500.00" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Data da conferência *</label>
+                        <input type="date" id="field-saldo-data" required class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500">
+                    </div>
+                </div>
+                <div class="flex justify-between items-center text-sm">
+                    <span class="font-semibold text-slate-600">Diferença a ajustar:</span>
+                    <span id="saldo-diferenca-display" class="font-bold text-slate-800">R$ 0,00</span>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Observação</label>
+                    <input type="text" id="field-saldo-obs" placeholder="Ex: Conferido com extrato de outubro" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500">
+                </div>
+                <p class="text-xs text-slate-500"><i class="fa-solid fa-circle-info mr-1"></i>O ajuste é guardado como um registro à parte e não altera seus recebimentos nem despesas. Ele é somado ao saldo do sistema.</p>
+                <div class="flex justify-end gap-3 pt-2 border-t border-slate-100">
+                    <button type="button" onclick="fecharModalSaldo()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white rounded-xl shadow">Aplicar Ajuste</button>
+                </div>
+                <div>
+                    <h4 class="text-xs font-bold text-slate-700 uppercase mb-2">Histórico de ajustes</h4>
+                    <div id="lista-ajustes" class="space-y-2"></div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="vendor/chart.umd.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/pwa.js"></script>
+</body>
+</html>
